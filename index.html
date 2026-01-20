@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RETROVERSE OS ∞ | Cortex Edition</title>
+    <style>
+        /* ==========================================================================
+           1. CSS VARIABLES & THEME ENGINE
+           ========================================================================== */
+        :root {
+            /* DIMENSIONS & FONTS */
+            --header-height: 28px;
+            --taskbar-height: 40px;
+            --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-mono: 'Courier New', Courier, monospace;
+
+            /* DEFAULT THEME (Day/Classic) */
+            --bg-color: #008080;
+            --win-bg: #c0c0c0;
+            --win-text: #000000;
+            --win-title-bg: #000080;
+            --win-title-text: #ffffff;
+            --btn-shadow: #808080;
+            --btn-highlight: #ffffff;
+            --accent-color: #000080;
+            --scanline-opacity: 0.05;
+        }
+
+        /* THEME: NIGHT / CYBERPUNK */
+        body.theme-night {
+            --bg-color: #0f0f1a;
+            --win-bg: #1a1a2e;
+            --win-text: #00ffff;
+            --win-title-bg: #ff0055;
+            --win-title-text: #000;
+            --btn-shadow: #0f0f1a;
+            --btn-highlight: #343450;
+            --accent-color: #ff0055;
+            --scanline-opacity: 0.15;
+        }
+
+        /* THEME: MATRIX / HACKER */
+        body.theme-hacker {
+            --bg-color: #000000;
+            --win-bg: #001100;
+            --win-text: #00ff00;
+            --win-title-bg: #003300;
+            --win-title-text: #00ff00;
+            --btn-shadow: #002200;
+            --btn-highlight: #004400;
+            --accent-color: #00ff00;
+            --scanline-opacity: 0.2;
+            font-family: var(--font-mono);
+        }
+
+        /* MODE: FOCUS (AI Controlled) */
+        body.mode-focus {
+            filter: grayscale(1) contrast(1.5);
+            --bg-color: #202020;
+        }
+
+        /* MODE: OVERLOAD (High Load) */
+        body.mode-overload {
+            animation: shake 0.5s infinite;
+        }
+
+        /* ==========================================================================
+           2. GLOBAL STYLES & LAYOUT
+           ========================================================================== */
+        * { box-sizing: border-box; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-color);
+            color: var(--win-text);
+            font-family: var(--font-main);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            transition: background-color 1s ease, filter 1s ease;
+        }
+
+        /* CRT SCANLINE OVERLAY */
+        #crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: var(--scanline-opacity);
+        }
+
+        /* 3D BORDERS (RETRO LOOK) */
+        .outset { border: 2px solid; border-color: var(--btn-highlight) var(--btn-shadow) var(--btn-shadow) var(--btn-highlight); background: var(--win-bg); }
+        .inset { border: 2px solid; border-color: var(--btn-shadow) var(--btn-highlight) var(--btn-highlight) var(--btn-shadow); background: #fff; }
+        body.theme-night .inset, body.theme-hacker .inset { background: #000; }
+
+        /* ==========================================================================
+           3. DESKTOP & WINDOW MANAGER
+           ========================================================================== */
+        #desktop {
+            position: absolute; top: 0; left: 0; right: 0; bottom: var(--taskbar-height);
+            padding: 20px;
+            display: flex; flex-direction: column; flex-wrap: wrap; align-content: flex-start; gap: 20px;
+        }
+
+        .icon {
+            width: 70px; text-align: center; cursor: pointer; color: #fff;
+            text-shadow: 1px 1px 1px #000;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .icon-img {
+            width: 48px; height: 48px; 
+            background: var(--win-bg); border: 2px solid transparent;
+            display: grid; place-items: center; font-size: 24px; margin-bottom: 5px;
+        }
+        .icon:hover .icon-img { border-color: #fff; filter: brightness(1.2); }
+
+        .window {
+            position: absolute; display: flex; flex-direction: column;
+            min-width: 300px; min-height: 200px;
+            box-shadow: 8px 8px 0 rgba(0,0,0,0.5);
+            animation: popUp 0.15s ease-out;
+        }
+        
+        .win-header {
+            height: var(--header-height);
+            background: var(--win-title-bg); color: var(--win-title-text);
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 6px; font-weight: bold; cursor: default;
+        }
+        .win-header.inactive { background: var(--btn-shadow); color: #ccc; }
+        
+        .win-controls button {
+            width: 18px; height: 18px; line-height: 14px;
+            font-weight: bold; font-size: 12px; margin-left: 2px;
+            background: var(--win-bg); border: 1px outset #fff; cursor: pointer;
+        }
+
+        .win-body { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+        .win-content { flex: 1; padding: 5px; overflow: auto; }
+
+        /* ==========================================================================
+           4. TASKBAR & UI ELEMENTS
+           ========================================================================== */
+        #taskbar {
+            position: absolute; bottom: 0; left: 0; right: 0; height: var(--taskbar-height);
+            background: var(--win-bg); border-top: 2px solid var(--btn-highlight);
+            display: flex; align-items: center; padding: 4px; z-index: 9000;
+        }
+
+        #start-btn {
+            font-weight: bold; padding: 4px 10px; display: flex; align-items: center; gap: 8px;
+            margin-right: 10px; height: 30px; cursor: pointer;
+        }
+
+        #task-list { flex: 1; display: flex; gap: 4px; overflow-x: auto; }
+        .task-item {
+            width: 140px; padding: 4px; font-size: 12px; white-space: nowrap; overflow: hidden; 
+            text-overflow: ellipsis; cursor: pointer; height: 30px; display: flex; align-items: center;
+        }
+        .task-item.active { background: #e0e0e0; font-weight: bold; border-style: inset; }
+        body.theme-night .task-item.active { background: #343450; color: #fff; }
+
+        /* AI TOAST */
+        #ai-toast {
+            position: fixed; bottom: 50px; right: 10px; width: 320px;
+            background: #ffffe0; color: #000; border: 1px solid #000;
+            padding: 10px; box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+            z-index: 9900; display: none; font-size: 12px;
+            animation: slideUp 0.3s ease-out;
+        }
+        #ai-toast strong { display: block; margin-bottom: 5px; color: navy; }
+        .ai-actions { display: flex; gap: 5px; margin-top: 8px; justify-content: flex-end; }
+        
+        /* APP SPECIFICS */
+        .terminal { background: #000; color: #0f0; font-family: var(--font-mono); height: 100%; padding: 5px; }
+        .terminal-input { background: transparent; border: none; color: #0f0; width: 100%; outline: none; font-family: var(--font-mono); }
+        
+        .notepad { width: 100%; height: 100%; resize: none; border: none; outline: none; padding: 5px; font-family: var(--font-mono); }
+        
+        .chart-bar { height: 10px; background: #555; margin-bottom: 5px; border: 1px solid #fff; }
+        .chart-fill { height: 100%; background: var(--accent-color); width: 0%; transition: width 0.5s; }
+
+        /* BOOT SCREEN */
+        #boot-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; color: #fff; font-family: var(--font-mono);
+            z-index: 10000; padding: 40px; font-size: 14px;
+        }
+
+        @keyframes popUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes shake { 0% { transform: translate(1px, 1px) rotate(0deg); } 10% { transform: translate(-1px, -2px) rotate(-1deg); } 20% { transform: translate(-3px, 0px) rotate(1deg); } 30% { transform: translate(3px, 2px) rotate(0deg); } 40% { transform: translate(1px, -1px) rotate(1deg); } 50% { transform: translate(-1px, 2px) rotate(-1deg); } 60% { transform: translate(-3px, 1px) rotate(0deg); } 70% { transform: translate(3px, 1px) rotate(-1deg); } 80% { transform: translate(-1px, -1px) rotate(1deg); } 90% { transform: translate(1px, 2px) rotate(0deg); } 100% { transform: translate(1px, -2px) rotate(-1deg); } }
+
+    </style>
+</head>
+<body>
+
+    <div id="crt-overlay"></div>
+    <div id="boot-screen"></div>
+
+    <div id="desktop"></div>
+
+    <div id="taskbar" class="outset">
+        <div id="start-btn" class="outset" onclick="UI.toggleAI()">
+            <div style="width:12px; height:12px; background:linear-gradient(135deg, orange, yellow); border:1px solid #000"></div>
+            RETRO∞
+        </div>
+        <div id="task-list"></div>
+        <div class="inset" id="clock" style="padding: 0 10px; font-family: var(--font-mono);">00:00</div>
+        <div style="margin-left:10px; font-size:10px; cursor:pointer;" onclick="AI.toggle()" id="ai-status-ind">AI: ON</div>
+    </div>
+
+    <div id="ai-toast" class="inset">
+        <strong id="ai-title">SYSTEM INTEL</strong>
+        <div id="ai-msg">Analyzing...</div>
+        <div class="ai-actions" id="ai-actions"></div>
+    </div>
+
+<script>
+const Utils = {
+    generateId: () => Math.random().toString(36).substr(2, 9),
+    getTime: () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    getHours: () => new Date().getHours()
+};
+
+const FileSystem = {
+    data: { root: { Documents: {}, Notes: {}, Tasks: {}, System: {} } },
+    init() {
+        const stored = localStorage.getItem('retroverse_fs');
+        if (stored) this.data = JSON.parse(stored);
+        else {
+            this.write('Documents/readme.txt', 'Welcome to RetroVerse.\nThis OS is alive. It watches. It learns.');
+            this.write('Notes/scratch.txt', 'My ideas...');
+        }
+    },
+    save() { localStorage.setItem('retroverse_fs', JSON.stringify(this.data)); },
+    write(path, content) {
+        const [folder, name] = path.split('/');
+        if (!this.data.root[folder]) this.data.root[folder] = {};
+        this.data.root[folder][name] = { content, type: 'file', modified: Date.now() };
+        this.save();
+        EventBus.emit('fs:write', { path, content });
+    },
+    read(path) {
+        const [folder, name] = path.split('/');
+        return this.data.root[folder]?.[name]?.content || "";
+    },
+    list(folder) { return this.data.root[folder] ? Object.keys(this.data.root[folder]) : []; }
+};
+
+const EventBus = {
+    listeners: {},
+    on(event, cb) { (this.listeners[event] = this.listeners[event] || []).push(cb); },
+    emit(event, data) {
+        if (this.listeners[event]) this.listeners[event].forEach(cb => cb(data));
+        if (event !== 'ai:log') AI.observe(event, data);
+    }
+};
+
+const System = {
+    booted: false,
+    theme: 'classic',
+    mode: 'normal',
+    startTime: Date.now()
+};
+
+const AI = {
+    enabled: true,
+    memory: { history: [], lastAction: Date.now(), suggestionsIgnored: 0, actionsTaken: [] },
+    profile: { type: 'Neutral', fatigue: 0, dominance: 'Balanced' },
+    
+    init() { setInterval(() => this.think(), 5000); },
+
+    toggle() {
+        this.enabled = !this.enabled;
+        document.getElementById('ai-status-ind').innerText = `AI: ${this.enabled ? 'ON' : 'OFF'}`;
+        if(!this.enabled) UI.setTheme('classic');
+        else UI.toast("AI ONLINE", "Neural engine re-engaged.");
+    },
+
+    observe(event, data) {
+        if (!this.enabled) return;
+        this.memory.history.push({ event, data, time: Date.now() });
+        this.memory.lastAction = Date.now();
+        if (event === 'app:open') this.checkIntent();
+        if (event === 'calc:result') this.offerInterApp(data);
+        if (event === 'note:save') this.analyzeNote(data);
+    },
+
+    think() {
+        if (!this.enabled) return;
+        const sessionMins = (Date.now() - System.startTime) / 60000;
+        if (sessionMins > 45 && this.profile.fatigue < 50) {
+            this.profile.fatigue = 50;
+            this.suggest("High session time detected. Initiate Recovery Mode?", () => this.setMode('recovery'), "High");
+        }
+        const appCounts = {};
+        this.memory.history.forEach(h => { if(h.event==='app:open') appCounts[h.data] = (appCounts[h.data]||0)+1; });
+        if ((appCounts['tasks']||0) > (appCounts['terminal']||0)) this.profile.dominance = 'Planner';
+        else if ((appCounts['terminal']||0) > 2) this.profile.dominance = 'Hacker';
+
+        if ((appCounts['calc']||0) > 3 && !FileSystem.read('System/auto_calc_pinned')) {
+            this.suggest("You use Calculator often. Auto-open on boot?", () => {
+                FileSystem.write('System/auto_calc_pinned', 'true');
+                this.recordAction("Created automation rule: Auto-Calc");
+            }, "Medium");
+        }
+    },
+
+    checkIntent() {
+        const openApps = WindowManager.getOpenApps();
+        if (openApps.includes('tasks') && openApps.includes('notes') && System.mode !== 'planning') {
+            this.setMode('planning');
+            this.explain("Intent Detected: Planning. I've adjusted the UI to reduce contrast.");
+        } else if (openApps.includes('terminal') && System.mode !== 'focus') {
+            this.setMode('focus');
+            this.explain("Intent Detected: Engineering. Focus Mode engaged.");
+        }
+    },
+
+    analyzeNote(content) {
+        if (content.includes('#task')) {
+            const task = content.split('#task')[1].split('\n')[0].trim();
+            this.suggest(`Found task: "${task}". Add to Task Manager?`, () => {
+                Apps.tasks.list.push({txt: task, done: false});
+                Apps.tasks.refresh();
+                WindowManager.open('tasks');
+                this.recordAction("Extracted task from notes");
+            }, "High");
+        }
+    },
+
+    offerInterApp(result) {
+        this.suggest(`Calculation result ${result}. Save to Notes?`, () => {
+            WindowManager.open('notes');
+            const current = FileSystem.read('Notes/scratch.txt');
+            const newContent = current + `\n[Calc Result]: ${result}`;
+            FileSystem.write('Notes/scratch.txt', newContent);
+            const notepadEl = document.getElementById('notepad');
+            if(notepadEl) notepadEl.value = newContent;
+            this.recordAction("Bridged Calculator to Notes");
+        }, "Medium");
+    },
+
+    setMode(mode) {
+        System.mode = mode;
+        document.body.className = document.body.className.split(' ').filter(c => c.startsWith('theme')).join(' ');
+        document.body.classList.add(`mode-${mode}`);
+        if(mode === 'recovery') UI.setTheme('night');
+        if(mode === 'planning') UI.setTheme('classic');
+        this.recordAction(`Switched System Mode to ${mode.toUpperCase()}`);
+    },
+
+    suggest(text, action, confidence) {
+        if (confidence === "Low") return;
+        UI.toast("AI SUGGESTION", text, [
+            { label: "Accept", action: () => { action(); this.memory.actionsTaken.push(text); } },
+            { label: "Ignore", action: () => { this.memory.suggestionsIgnored++; } }
+        ]);
+    },
+
+    explain(decision) {
+        UI.toast("SYSTEM REASONING", decision);
+        this.recordAction(`Explained: ${decision}`);
+    },
+
+    recordAction(action) {
+        this.memory.actionsTaken.push({ action, time: Utils.getTime() });
+        EventBus.emit('ai:log_update');
+    }
+};
+
+const WindowManager = {
+    windows: [],
+    zIndex: 100,
+
+    init() {
+        const desktop = document.getElementById('desktop');
+        const apps = [
+            { id: 'terminal', icon: '💻', name: 'Terminal' },
+            { id: 'notes', icon: '📝', name: 'Smart Notes' },
+            { id: 'tasks', icon: '✅', name: 'Task Mgr' },
+            { id: 'calc', icon: '🧮', name: 'Calc' },
+            { id: 'monitor', icon: '📊', name: 'Sys Monitor' },
+            { id: 'reflection', icon: '🧠', name: 'AI Brain' },
+            { id: 'chatbot', icon: '👁️', name: 'CORTEX' },
+            { id: 'devtools', icon: '⚙️', name: 'DEMO MODE' }
+        ];
+
+        apps.forEach(app => {
+            const el = document.createElement('div');
+            el.className = 'icon';
+            el.innerHTML = `<div class="icon-img outset">${app.icon}</div>${app.name}`;
+            el.onclick = () => this.open(app.id);
+            desktop.appendChild(el);
+        });
+    },
+
+    open(appId) {
+        if (document.getElementById(`win-${appId}`)) return this.focus(appId);
+        EventBus.emit('app:open', appId);
+        const win = document.createElement('div');
+        win.id = `win-${appId}`;
+        win.className = 'window outset';
+        win.style.zIndex = ++this.zIndex;
+        win.style.left = (50 + (this.windows.length * 30)) + 'px';
+        win.style.top = (50 + (this.windows.length * 30)) + 'px';
+        const appConfig = Apps[appId] || { title: 'Unknown', render: () => 'Error' };
+        win.innerHTML = `
+            <div class="win-header" onmousedown="WindowManager.dragStart(event, '${appId}')">
+                <span>${appConfig.title}</span>
+                <div class="win-controls">
+                    <button onclick="WindowManager.close('${appId}')">X</button>
+                </div>
+            </div>
+            <div class="win-body">
+                <div class="win-content inset">${appConfig.render()}</div>
+            </div>
+        `;
+        win.onmousedown = () => this.focus(appId);
+        document.body.appendChild(win);
+        this.windows.push(appId);
+        this.updateTaskbar();
+        if (appConfig.init) appConfig.init(win);
+    },
+
+    close(id) {
+        const el = document.getElementById(`win-${id}`);
+        if(el) el.remove();
+        this.windows = this.windows.filter(w => w !== id);
+        this.updateTaskbar();
+        EventBus.emit('app:close', id);
+    },
+
+    focus(id) {
+        const el = document.getElementById(`win-${id}`);
+        if (el) {
+            el.style.zIndex = ++this.zIndex;
+            document.querySelectorAll('.win-header').forEach(h => h.classList.add('inactive'));
+            el.querySelector('.win-header').classList.remove('inactive');
+        }
+    },
+
+    getOpenApps() { return this.windows; },
+
+    updateTaskbar() {
+        const list = document.getElementById('task-list');
+        list.innerHTML = this.windows.map(id => {
+            const app = Apps[id];
+            return `<div class="task-item outset" onclick="WindowManager.focus('${id}')">${app.title}</div>`;
+        }).join('');
+    },
+
+    dragState: null,
+    dragStart(e, id) {
+        this.focus(id);
+        const win = document.getElementById(`win-${id}`);
+        this.dragState = {
+            win,
+            offX: e.clientX - win.offsetLeft,
+            offY: e.clientY - win.offsetTop
+        };
+        document.addEventListener('mousemove', this.dragMove);
+        document.addEventListener('mouseup', this.dragEnd);
+    },
+    dragMove(e) {
+        if (!WindowManager.dragState) return;
+        const { win, offX, offY } = WindowManager.dragState;
+        win.style.left = (e.clientX - offX) + 'px';
+        win.style.top = (e.clientY - offY) + 'px';
+    },
+    dragEnd() {
+        WindowManager.dragState = null;
+        document.removeEventListener('mousemove', WindowManager.dragMove);
+    }
+};
+
+const Apps = {
+    terminal: {
+        title: 'Terminal',
+        render: () => `<div id="term-out" class="terminal">RetroOS Kernel v2.4<br>Type 'help' for commands.<br><br>$ </div><input id="term-in" class="terminal-input" autofocus>`,
+        init: (win) => {
+            const input = win.querySelector('#term-in');
+            const out = win.querySelector('#term-out');
+            input.onkeydown = (e) => {
+                if(e.key === 'Enter') {
+                    const cmd = input.value;
+                    out.innerHTML += `${cmd}<br>`;
+                    Apps.terminal.exec(cmd, out);
+                    input.value = '';
+                    out.scrollTop = out.scrollHeight;
+                }
+            };
+        },
+        exec: (cmd, out) => {
+            const args = cmd.split(' ');
+            let res = '';
+            switch(args[0]) {
+                case 'help': res = 'ls, open [app], clear, stats, whoami'; break;
+                case 'ls': res = JSON.stringify(FileSystem.data.root, null, 2); break;
+                case 'stats': res = JSON.stringify(AI.profile, null, 2); break;
+                case 'clear': out.innerHTML = '$ '; return;
+                case 'open': WindowManager.open(args[1]); res = `Opening ${args[1]}...`; break;
+                case 'whoami': res = `User: Admin\nProfile: ${AI.profile.dominance}`; break;
+                default: res = 'Command not found.';
+            }
+            out.innerHTML += `<span style="color:#aaa">${res}</span><br>$ `;
+        }
+    },
+    notes: {
+        title: 'Smart Notes',
+        render: () => `<textarea id="notepad" class="notepad" placeholder="Type here... Use #task or #idea tags.">${FileSystem.read('Notes/scratch.txt')}</textarea>`,
+        init: (win) => {
+            const pad = win.querySelector('#notepad');
+            let timeout;
+            pad.oninput = () => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    FileSystem.write('Notes/scratch.txt', pad.value);
+                    EventBus.emit('note:save', pad.value);
+                }, 1000);
+            };
+            EventBus.on('app:refresh', (id) => { if(id==='notes') pad.value = FileSystem.read('Notes/scratch.txt'); });
+        }
+    },
+    calc: {
+        title: 'Calculator',
+        render: () => `
+            <div class="inset" style="text-align:right; padding:5px; margin-bottom:5px; font-family:monospace; font-size:16px" id="calc-disp">0</div>
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:2px">
+                ${['7','8','9','/','4','5','6','*','1','2','3','-','C','0','=','+'].map(b => `<button class="outset" onclick="Apps.calc.click('${b}')" style="height:30px">${b}</button>`).join('')}
+            </div>
+        `,
+        val: '',
+        click: (k) => {
+            const disp = document.getElementById('calc-disp');
+            if(k === 'C') Apps.calc.val = '';
+            else if(k === '=') {
+                try { 
+                    const res = eval(Apps.calc.val); 
+                    EventBus.emit('calc:result', res);
+                    Apps.calc.val = res;
+                } catch { Apps.calc.val = 'Err'; }
+            } else Apps.calc.val += k;
+            disp.innerText = Apps.calc.val || '0';
+        }
+    },
+    tasks: {
+        title: 'Task Manager',
+        render: () => `<div id="task-view"></div><button class="outset" style="width:100%; margin-top:5px" onclick="Apps.tasks.add()">+ Add Task</button>`,
+        list: [],
+        init: (win) => Apps.tasks.refresh(),
+        add: (text) => {
+            const t = text || prompt("Task Name:");
+            if(t) { Apps.tasks.list.push({txt: t, done: false}); Apps.tasks.refresh(); }
+        },
+        refresh: () => {
+            const el = document.getElementById('task-view');
+            if(el) el.innerHTML = Apps.tasks.list.map((t,i) => `
+                <div style="border-bottom:1px solid #ddd; padding:2px">
+                    <input type="checkbox" ${t.done?'checked':''} onclick="Apps.tasks.list[${i}].done=!Apps.tasks.list[${i}].done"> ${t.txt}
+                </div>`).join('');
+        }
+    },
+    monitor: {
+        title: 'System Monitor',
+        render: () => `<div id="mon-graph" style="padding:10px; font-size:12px">Initializing Analytics...</div>`,
+        init: (win) => {
+            const el = win.querySelector('#mon-graph');
+            setInterval(() => {
+                if(!document.contains(el)) return;
+                const cpu = Math.floor(Math.random() * 30) + (WindowManager.windows.length * 5);
+                const mem = Math.floor(Math.random() * 20) + 40;
+                el.innerHTML = `
+                    CPU LOAD: ${cpu}% <div class="chart-bar"><div class="chart-fill" style="width:${cpu}%"></div></div>
+                    MEMORY: ${mem}% <div class="chart-bar"><div class="chart-fill" style="width:${mem}%"></div></div>
+                    <hr>
+                    <strong>ANALYTICS:</strong><br>
+                    Dominance: ${AI.profile.dominance}<br>
+                    Fatigue Level: ${AI.profile.fatigue}%<br>
+                    Events Tracked: ${AI.memory.history.length}
+                `;
+                if(cpu > 80) document.body.classList.add('mode-overload');
+                else document.body.classList.remove('mode-overload');
+            }, 1000);
+        }
+    },
+    reflection: {
+        title: 'AI Meta-Reflection',
+        render: () => `<div id="meta-log" style="font-family:monospace; font-size:11px; height:100%; padding:5px;">Waiting for neural activity...</div>`,
+        init: () => {
+            const renderLog = () => {
+                const el = document.getElementById('meta-log');
+                if(el) {
+                    el.innerHTML = AI.memory.actionsTaken.map(a => 
+                        `<div style="margin-bottom:5px; border-left:2px solid green; padding-left:5px">
+                            <span style="color:#888">[${a.time || 'NOW'}]</span> ${a.action || a}
+                        </div>`
+                    ).reverse().join('');
+                }
+            };
+            EventBus.on('ai:log_update', renderLog);
+            renderLog();
+        }
+    },
+    chatbot: {
+        title: 'Cortex AI',
+        render: () => `
+            <div id="chat-history" class="inset" style="height:200px; overflow-y:auto; padding:10px; background:#fff; color:#000; margin-bottom:5px; font-family:var(--font-main);">
+                <div style="color:blue"><strong>Cortex:</strong> How can I assist you, Administrator?</div>
+            </div>
+            <input id="chat-input" class="inset" style="width:100%; padding:5px;" placeholder="Type 'hacker mode', 'reset', 'open calc'..." autofocus>
+            <button class="outset" style="width:100%; margin-top:5px" onclick="Apps.chatbot.send()">Send Command</button>
+        `,
+        init: (win) => {
+            const input = win.querySelector('#chat-input');
+            input.onkeydown = (e) => { if(e.key === 'Enter') Apps.chatbot.send(); };
+        },
+        send: () => {
+            const input = document.getElementById('chat-input');
+            const history = document.getElementById('chat-history');
+            const msg = input.value.trim();
+            if(!msg) return;
+
+            history.innerHTML += `<div style="text-align:right; margin:5px 0; color:#444"><strong>You:</strong> ${msg}</div>`;
+            input.value = '';
+
+            setTimeout(() => {
+                let response = "I'm not sure how to do that yet.";
+                const lower = msg.toLowerCase();
+
+                if(lower.includes('hacker') || lower.includes('matrix')) {
+                    Apps.devtools.trigger('theme_hacker');
+                    response = "Accessing the Matrix. Hacker Mode activated.";
+                }
+                else if(lower.includes('night') || lower.includes('dark')) {
+                    Apps.devtools.trigger('theme_night');
+                    response = "Lights dimmed. Night Mode active.";
+                }
+                else if(lower.includes('day') || lower.includes('light') || lower.includes('reset')) {
+                    Apps.devtools.trigger('reset');
+                    response = "System visuals reset to default.";
+                }
+                else if(lower.includes('calc')) {
+                    WindowManager.open('calc');
+                    response = "Calculator launched.";
+                }
+                else if(lower.includes('focus')) {
+                    Apps.devtools.trigger('intent_focus');
+                    response = "Distractions eliminated. Focus Mode engaged.";
+                }
+                else if(lower.includes('plan')) {
+                    Apps.devtools.trigger('intent_plan');
+                    response = "Planning UI initialized.";
+                }
+                else if(lower.includes('demo') || lower.includes('judge')) {
+                    WindowManager.open('devtools');
+                    response = "Judge Presentation Mode unlocked.";
+                }
+                 else if(lower.includes('melt') || lower.includes('cpu')) {
+                    Apps.devtools.trigger('overload');
+                    response = "WARNING: SYSTEM OVERLOAD INITIATED.";
+                }
+
+                history.innerHTML += `<div style="text-align:left; margin:5px 0; color:blue"><strong>Cortex:</strong> ${response}</div>`;
+                history.scrollTop = history.scrollHeight;
+            }, 600);
+        }
+    },
+    devtools: {
+        title: '⚠️ DEMO CONTROLLER',
+        render: () => `
+            <div style="padding:10px; display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <button class="outset" style="background:#ffdddd; font-weight:bold" onclick="Apps.devtools.trigger('calc_bridge')">⚡ Calc > Notes</button>
+                <button class="outset" style="background:#ffdddd; font-weight:bold" onclick="Apps.devtools.trigger('note_task')">⚡ Notes > Task</button>
+                
+                <hr style="grid-column:span 2; width:100%">
+                
+                <button class="outset" onclick="Apps.devtools.trigger('intent_focus')">🎯 Force Focus</button>
+                <button class="outset" onclick="Apps.devtools.trigger('intent_plan')">📅 Force Plan</button>
+                
+                <button class="outset" onclick="Apps.devtools.trigger('theme_hacker')">😎 Hacker Theme</button>
+                <button class="outset" onclick="Apps.devtools.trigger('theme_night')">🌙 Night Theme</button>
+                
+                <button class="outset" onclick="Apps.devtools.trigger('auto_learn')">🤖 Automation</button>
+                <button class="outset" onclick="Apps.devtools.trigger('fatigue')">😴 Fatigue Warn</button>
+                
+                <button class="outset" style="background:#ff0000; color:white" onclick="Apps.devtools.trigger('overload')">🔥 CPU MELT</button>
+                <button class="outset" onclick="Apps.devtools.trigger('reset')">♻️ Reset UI</button>
+            </div>
+            <div style="padding:5px; font-size:10px; color:#555; text-align:center">JUDGE PRESENTATION MODE ACTIVE</div>
+        `,
+        trigger: (action) => {
+            switch(action) {
+                case 'calc_bridge':
+                    EventBus.emit('calc:result', 9999);
+                    break;
+                case 'note_task':
+                    AI.analyzeNote("Don't forget to #task Impress the Judges");
+                    break;
+                case 'intent_focus':
+                    AI.setMode('focus');
+                    AI.explain("Manual Override: Engineering Focus Mode Engaged.");
+                    break;
+                case 'intent_plan':
+                    AI.setMode('planning');
+                    AI.explain("Manual Override: Planning Mode Engaged.");
+                    break;
+                case 'theme_hacker':
+                    UI.setTheme('hacker');
+                    break;
+                case 'theme_night':
+                    UI.setTheme('night');
+                    break;
+                case 'auto_learn':
+                    AI.suggest("Pattern Detected: You open Calculator on boot. Auto-open next time?", () => {
+                        FileSystem.write('System/auto_calc_pinned', 'true');
+                        AI.recordAction("Created automation rule: Auto-Calc");
+                    }, "High");
+                    break;
+                case 'fatigue':
+                    AI.profile.fatigue = 90;
+                    AI.suggest("Critical Fatigue Detected (90%). Initiate Recovery Mode?", () => AI.setMode('recovery'), "High");
+                    break;
+                case 'overload':
+                    document.body.classList.add('mode-overload');
+                    setTimeout(() => document.body.classList.remove('mode-overload'), 5000);
+                    break;
+                case 'reset':
+                    document.body.className = 'theme-classic';
+                    System.mode = 'normal';
+                    break;
+            }
+        }
+    }
+};
+
+const UI = {
+    setTheme(name) {
+        document.body.className = `theme-${name}`;
+    },
+    toast(title, msg, actions = []) {
+        const el = document.getElementById('ai-toast');
+        document.getElementById('ai-title').innerText = title;
+        document.getElementById('ai-msg').innerText = msg;
+        const ac = document.getElementById('ai-actions');
+        ac.innerHTML = '';
+        actions.forEach(a => {
+            const btn = document.createElement('button');
+            btn.className = 'outset';
+            btn.style.cursor = 'pointer';
+            btn.innerText = a.label;
+            btn.onclick = () => { a.action(); el.style.display = 'none'; };
+            ac.appendChild(btn);
+        });
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 10000);
+    },
+    toggleAI() {
+        UI.toast("START MENU", "System shortcuts not yet implemented.");
+    }
+};
+
+window.onload = () => {
+    const boot = document.getElementById('boot-screen');
+    const logs = [
+        "RETROVERSE BIOS v4.0",
+        "Checking Memory... OK",
+        "Mounting FileSystem... OK",
+        "Initializing Neural Engine... OK",
+        "Loading Digital Twin Profile... OK",
+    ];
+    
+    const hour = Utils.getHours();
+    if (hour < 6 || hour > 18) {
+        logs.push("Detected Night Cycle. Loading CYBERPUNK Theme.");
+        UI.setTheme('night');
+    } else {
+        logs.push("Detected Day Cycle. Loading CLASSIC Theme.");
+        UI.setTheme('classic');
+    }
+
+    let i = 0;
+    const printLog = () => {
+        if (i < logs.length) {
+            boot.innerHTML += logs[i] + "<br>";
+            i++;
+            setTimeout(printLog, 300);
+        } else {
+            setTimeout(() => {
+                boot.style.display = 'none';
+                System.booted = true;
+                FileSystem.init();
+                WindowManager.init();
+                AI.init();
+                UI.toast("SYSTEM READY", "AI is online and observing.");
+                if(FileSystem.read('System/auto_calc_pinned')) WindowManager.open('calc');
+            }, 800);
+        }
+    };
+    printLog();
+    setInterval(() => document.getElementById('clock').innerText = Utils.getTime(), 1000);
+};
+</script>
+</body>
+</html>
